@@ -3,6 +3,7 @@
 // ============================================================================
 
 let isRunning = false;
+let currentApplyTabId = null;
 
 // ============================================================================
 // INITIALIZATION
@@ -12,7 +13,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
   await updateRateLimit();
   setupEventListeners();
+  await restoreFlowState();
 });
+
+async function restoreFlowState() {
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.url || !tab.url.includes('linkedin.com/jobs')) return;
+
+    const state = await chrome.tabs.sendMessage(tab.id, { action: 'getApplyState' });
+    if (!state || !state.running) return;
+
+    isRunning = true;
+    currentApplyTabId = tab.id;
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+    showStatus('actionStatus', 'warning', `⏸ Application flow is still running (${state.state}).`, 0);
+  } catch (error) {
+    // Content scripts are not present on pages loaded before the extension was
+    // installed; refreshing that tab will inject the current version.
+  }
+}
 
 // ============================================================================
 // EVENT LISTENERS
@@ -39,6 +60,16 @@ function setupEventListeners() {
   
   // Clear log
   document.getElementById('clearLog').addEventListener('click', clearLog);
+
+  // Navigation to the full extension pages
+  document.getElementById('openQueue').addEventListener('click', () => openExtensionPage('queue-manager.html'));
+  document.getElementById('openDashboard').addEventListener('click', () => openExtensionPage('dashboard.html'));
+  document.getElementById('openTracker').addEventListener('click', () => openExtensionPage('progress-tracker.html'));
+  document.getElementById('openSettings').addEventListener('click', () => openExtensionPage('settings.html'));
+}
+
+function openExtensionPage(page) {
+  chrome.tabs.create({ url: chrome.runtime.getURL(page) });
 }
 
 // ============================================================================
@@ -48,10 +79,10 @@ async function loadProfile() {
   const data = await chrome.storage.local.get(['profile']);
   const profile = data.profile || {};
   
-  document.getElementById('fullName').value = profile.fullName || '';
+  document.getElementById('fullName').value = profile.fullName || profile.name || '';
   document.getElementById('email').value = profile.email || '';
   document.getElementById('phone').value = profile.phone || '';
-  document.getElementById('linkedinUrl').value = profile.linkedinUrl || '';
+  document.getElementById('linkedinUrl').value = profile.linkedinUrl || profile.linkedin || '';
   document.getElementById('city').value = profile.city || '';
   document.getElementById('experience').value = profile.experience || '';
   document.getElementById('company').value = profile.company || '';
@@ -60,27 +91,32 @@ async function loadProfile() {
 }
 
 async function saveProfile() {
+  const existingData = await chrome.storage.local.get(['profile']);
+  const existing = existingData.profile || {};
+  const fullName = document.getElementById('fullName').value.trim();
+  const linkedinUrl = document.getElementById('linkedinUrl').value.trim();
+
   const profile = {
-    fullName: document.getElementById('fullName').value.trim(),
+    ...existing,
+    fullName,
+    name: fullName, // legacy alias used by older AI modules
     email: document.getElementById('email').value.trim(),
     phone: document.getElementById('phone').value.trim(),
-    linkedinUrl: document.getElementById('linkedinUrl').value.trim(),
+    linkedinUrl,
+    linkedin: linkedinUrl, // legacy alias
     city: document.getElementById('city').value.trim(),
-    address: '',
     experience: document.getElementById('experience').value.trim(),
     company: document.getElementById('company').value.trim(),
     jobTitle: document.getElementById('jobTitle').value.trim(),
-    coverLetter: document.getElementById('coverLetter').value.trim(),
-    website: '',
-    github: ''
+    coverLetter: document.getElementById('coverLetter').value.trim()
   };
-  
+
   // Validate required fields
   if (!profile.fullName || !profile.email || !profile.phone) {
     showStatus('saveStatus', 'error', 'Please fill all required fields (*)', 3000);
     return;
   }
-  
+
   await chrome.storage.local.set({ profile });
   showStatus('saveStatus', 'success', '✓ Profile saved successfully!', 2000);
 }
@@ -93,10 +129,12 @@ async function loadSettings() {
 }
 
 async function saveSettings() {
+  const data = await chrome.storage.local.get(['settings']);
   const settings = {
+    ...(data.settings || {}),
     autoSubmit: document.getElementById('autoSubmit').checked
   };
-  
+
   await chrome.storage.local.set({ settings });
 }
 
@@ -108,8 +146,17 @@ async function startApply() {
   
   // Load profile
   const data = await chrome.storage.local.get(['profile', 'settings']);
-  const profile = data.profile;
+  const rawProfile = data.profile;
+  const profile = rawProfile ? {
+    ...rawProfile,
+    fullName: rawProfile.fullName || rawProfile.name || '',
+    linkedinUrl: rawProfile.linkedinUrl || rawProfile.linkedin || ''
+  } : null;
   const settings = data.settings || { autoSubmit: false };
+
+  if (profile && (profile.fullName !== rawProfile.fullName || profile.linkedinUrl !== rawProfile.linkedinUrl)) {
+    await chrome.storage.local.set({ profile });
+  }
   
   // Validate profile
   if (!profile || !profile.fullName || !profile.email || !profile.phone) {
@@ -119,13 +166,14 @@ async function startApply() {
   
   // Check if on LinkedIn
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab.url.includes('linkedin.com/jobs')) {
+  if (!tab || !tab.url || !tab.url.includes('linkedin.com/jobs')) {
     showStatus('actionStatus', 'error', '⚠ Please navigate to a LinkedIn job page first', 3000);
     return;
   }
   
   // Update UI
   isRunning = true;
+  currentApplyTabId = tab.id;
   document.getElementById('startBtn').disabled = true;
   document.getElementById('stopBtn').disabled = false;
   showStatus('actionStatus', 'success', '🚀 Starting Easy Apply flow...', 0);
@@ -138,33 +186,43 @@ async function startApply() {
       autoSubmit: settings.autoSubmit
     });
     
-    if (!response.success) {
-      throw new Error(response.error);
+    // DONE without `submitted` means it safely filled the application and
+    // stopped for the user to review it. That is not a failed run.
+    if (!response || (!response.success && response.state !== 'DONE')) {
+      throw new Error((response && (response.reason || response.error)) || 'The application flow did not complete.');
     }
-    
+    if (response.state === 'DONE' && !response.submitted) {
+      showStatus('actionStatus', 'success', '✓ Application filled and ready for your review.', 0);
+      resetUI();
+    }
+
   } catch (error) {
-    showStatus('actionStatus', 'error', `❌ Error: ${error.message}`, 0);
+    const hint = error.message && error.message.includes('Receiving end does not exist')
+      ? 'Content script not loaded on this page. Refresh the LinkedIn job page and try again.'
+      : error.message;
+    showStatus('actionStatus', 'error', `❌ ${hint}`, 0);
     resetUI();
   }
 }
 
 async function stopApply() {
   if (!isRunning) return;
-  
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  
+
   try {
-    await chrome.tabs.sendMessage(tab.id, { action: 'stopApply' });
+    if (currentApplyTabId !== null) {
+      await chrome.tabs.sendMessage(currentApplyTabId, { action: 'stopApply' });
+    }
     showStatus('actionStatus', 'warning', '⏸ Stopping...', 2000);
   } catch (error) {
     console.error('Stop error:', error);
   }
-  
+
   resetUI();
 }
 
 function resetUI() {
   isRunning = false;
+  currentApplyTabId = null;
   document.getElementById('startBtn').disabled = false;
   document.getElementById('stopBtn').disabled = true;
 }
@@ -173,14 +231,38 @@ function resetUI() {
 // RATE LIMIT DISPLAY
 // ============================================================================
 async function updateRateLimit() {
-  const data = await chrome.storage.local.get(['rateLimitData']);
-  const rateLimitData = data.rateLimitData || { applications: [], hourlyLimit: 10 };
-  
-  const now = Date.now();
-  const oneHourAgo = now - 60 * 60 * 1000;
-  const recentApps = rateLimitData.applications.filter(t => t > oneHourAgo);
-  
-  document.getElementById('appCount').textContent = recentApps.length;
+  try {
+    const data = await chrome.storage.local.get(['rateLimitData']);
+    const rateLimitData = data.rateLimitData || { applications: [], hourlyLimit: 10 };
+    const now = Date.now();
+    const oneHourAgo = now - 60 * 60 * 1000;
+    const applications = Array.isArray(rateLimitData.applications) ? rateLimitData.applications : [];
+    const recentApps = applications.filter(timestamp => timestamp > oneHourAgo);
+
+    document.getElementById('appCount').textContent = recentApps.length;
+    const limitElement = document.getElementById('hourlyLimit');
+    if (limitElement) limitElement.textContent = rateLimitData.hourlyLimit || 10;
+  } catch (error) {
+    console.warn('Could not update the rate-limit display:', error);
+  }
+
+  // Show background queue status (which continues even after this popup closes)
+  try {
+    const state = await chrome.runtime.sendMessage({ action: 'getAutoApplyState' });
+    const info = document.getElementById('autoApplyInfo');
+    if (!info) return;
+
+    if (state && state.isRunning) {
+      info.style.display = 'block';
+      document.getElementById('autoApplyLabel').textContent = state.paused ? 'paused' : 'running';
+      const result = state.results || {};
+      document.getElementById('autoApplyCount').textContent = result.success || state.totalApplied || 0;
+    } else {
+      info.style.display = 'none';
+    }
+  } catch (error) {
+    // Background worker may be restarting; ignore until next refresh.
+  }
 }
 
 // Update rate limit every 5 seconds

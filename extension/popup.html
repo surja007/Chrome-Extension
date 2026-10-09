@@ -339,9 +339,20 @@
           ⏸️ Stop
         </button>
       </div>
-      
+
+      <div class="btn-group" style="margin-top: 8px;">
+        <button class="btn btn-primary" id="openQueue" style="font-size: 12px; padding: 6px;">📋 Queue</button>
+        <button class="btn btn-primary" id="openDashboard" style="font-size: 12px; padding: 6px;">📊 Dashboard</button>
+        <button class="btn btn-primary" id="openTracker" style="font-size: 12px; padding: 6px;">📈 Progress</button>
+        <button class="btn btn-primary" id="openSettings" style="font-size: 12px; padding: 6px;">⚙️ Settings</button>
+      </div>
+
       <div class="rate-limit" id="rateLimit">
-        Applications: <span id="appCount">0</span>/10 per hour
+        Applications: <span id="appCount">0</span>/<span id="hourlyLimit">10</span> per hour
+      </div>
+
+      <div class="rate-limit" id="autoApplyInfo" style="display: none; background: #dbeafe; color: #1e40af;">
+        🤖 Auto-apply <span id="autoApplyLabel">running</span>: <span id="autoApplyCount">0</span> applied
       </div>
       
       <div class="status" id="actionStatus"></div>

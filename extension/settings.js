@@ -14,11 +14,13 @@ async function loadSettings() {
 
   if (profile) {
     // Personal Info
-    document.getElementById('name').value = profile.name || '';
+    // Unified schema: fullName / linkedinUrl (same keys the popup and the
+    // content script use). Legacy keys (name / linkedin) are read as fallback.
+    document.getElementById('name').value = profile.fullName || profile.name || '';
     document.getElementById('email').value = profile.email || '';
     document.getElementById('phone').value = profile.phone || '';
     document.getElementById('city').value = profile.city || '';
-    document.getElementById('linkedin').value = profile.linkedin || '';
+    document.getElementById('linkedin').value = profile.linkedinUrl || profile.linkedin || '';
     document.getElementById('github').value = profile.github || '';
     document.getElementById('website').value = profile.website || '';
 
@@ -86,31 +88,41 @@ function setupEventListeners() {
 
 async function saveSettings() {
   try {
-    // Collect profile data
+    // Merge with the existing profile: the Settings page must not wipe fields
+    // entered in the popup (cover letter, address, etc.).
+    const existing = (await storage.getProfile()) || {};
+    const fullName = document.getElementById('name').value.trim();
+    const linkedinUrl = document.getElementById('linkedin').value.trim();
+
+    // Keep the profile keys canonical for the popup/content script, and retain
+    // legacy aliases for the older AI modules in this repository.
     const profile = {
-      name: document.getElementById('name').value.trim(),
+      ...existing,
+      fullName,
+      name: fullName,
       email: document.getElementById('email').value.trim(),
       phone: document.getElementById('phone').value.trim(),
       city: document.getElementById('city').value.trim(),
-      linkedin: document.getElementById('linkedin').value.trim(),
+      linkedinUrl,
+      linkedin: linkedinUrl,
       github: document.getElementById('github').value.trim(),
       website: document.getElementById('website').value.trim(),
       jobTitle: document.getElementById('jobTitle').value.trim(),
-      experience: parseInt(document.getElementById('experience').value) || 0,
+      experience: parseInt(document.getElementById('experience').value, 10) || 0,
       company: document.getElementById('company').value.trim(),
-      skills: document.getElementById('skills').value.split(',').map(s => s.trim()).filter(s => s),
+      skills: document.getElementById('skills').value.split(',').map(s => s.trim()).filter(Boolean),
       summary: document.getElementById('summary').value.trim(),
-      minSalary: parseInt(document.getElementById('minSalary').value) || 0,
-      maxSalary: parseInt(document.getElementById('maxSalary').value) || 0,
-      preferredLocations: document.getElementById('preferredLocations').value.split(',').map(s => s.trim()).filter(s => s),
+      minSalary: parseInt(document.getElementById('minSalary').value, 10) || 0,
+      maxSalary: parseInt(document.getElementById('maxSalary').value, 10) || 0,
+      preferredLocations: document.getElementById('preferredLocations').value.split(',').map(s => s.trim()).filter(Boolean),
       workMode: document.getElementById('workMode').value,
       willingToRelocate: document.getElementById('willingToRelocate').checked,
-      noticePeriod: parseInt(document.getElementById('noticePeriod').value) || 0,
+      noticePeriod: parseInt(document.getElementById('noticePeriod').value, 10) || 0,
       employmentType: document.getElementById('employmentType').value
     };
 
     // Validate required fields
-    if (!profile.name || !profile.email || !profile.phone || !profile.jobTitle) {
+    if (!profile.fullName || !profile.email || !profile.phone || !profile.jobTitle) {
       showStatus('Please fill in all required fields (*)', 'error');
       return;
     }
@@ -118,8 +130,13 @@ async function saveSettings() {
     // Save profile
     await storage.saveProfile(profile);
 
+    // Preserve settings used by other pages/background code that this form
+    // does not expose (e.g. delay and rate-limit preferences).
+    const existingSettings = await storage.getSettings();
+
     // Collect settings data
     const settings = {
+      ...existingSettings,
       autoApplyMode: document.getElementById('autoApplyMode').value,
       autoSubmit: document.getElementById('autoSubmit').checked,
       skipDuplicates: document.getElementById('skipDuplicates').checked,

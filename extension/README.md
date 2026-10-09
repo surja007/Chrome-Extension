@@ -1,162 +1,70 @@
-# 🚀 JobPilot - FastApply Clone
+# JobPilot Chrome Extension
 
-AI-powered job application automation. Apply to hundreds of jobs with one click across LinkedIn, Naukri, and Indeed.
+JobPilot is a local Chrome extension for filling LinkedIn Easy Apply forms and keeping a queue/history of job listings. Profile data stays in Chrome storage; there is no remote account or application server.
 
-## ✨ Features
+## What is currently supported
 
-**LinkedIn Easy Apply** - Multi-page form automation with intelligent field detection  
-**Smart Form Filling** - AI analyzes fields and fills them correctly  
-**Human-like Behavior** - Random delays, typing simulation, mouse movements  
-**Answer Memory** - Remembers answers to questions and reuses them  
-**Job Queue Manager** - Scrape jobs, add to queue, process automatically  
-**Company Blacklist** - Skip companies you don't want  
-**Rate Limiting** - Control speed with hourly/daily limits  
-**Job Scraper** - Extract jobs from search pages with filters  
-**Application Tracking** - Dashboard with statistics and insights  
-**Stealth Mode** - Advanced detection avoidance techniques  
+- **LinkedIn Easy Apply:** fill common profile fields, move through application steps, and optionally submit after confirmation.
+- **Manual review:** auto-submit is off by default. If a required question is unknown or needs a file upload, JobPilot stops safely and leaves the application open for you.
+- **Job listing collection:** scrape listings from LinkedIn, Naukri, and Indeed into a local queue.
+- **Queue processing:** LinkedIn Easy Apply jobs can be processed by the background service worker. The queue and progress survive closing the popup.
+- **History and rate limit:** confirmed submissions are recorded locally and limited to 10 per hour by default.
 
-## 🎯 Installation
+**Important limitation:** Naukri and Indeed listings can be collected and opened, but automatic form-filling/submission for those sites is not implemented. Their queued jobs are marked unsupported rather than silently treated as applications.
 
-1. Download or clone this repo
-2. Open Chrome → `chrome://extensions/`
-3. Enable **Developer mode** (top right)
-4. Click **Load unpacked** → Select `extension` folder
-5. Pin the extension to your toolbar
+## Install or update
 
-## 🔥 Quick Start
+1. Open `chrome://extensions/` in Chrome.
+2. Turn on **Developer mode**.
+3. Select **Load unpacked** and choose this repository's `extension` folder.
+4. After updating an already-installed copy, click **Reload** on the extension card.
+5. Refresh any LinkedIn, Naukri, or Indeed tabs that were open before installing/reloading. Chrome only injects the current content scripts into newly loaded pages.
 
-### Setup Profile
-- Click extension icon
-- Fill your details (name, email, phone, LinkedIn, etc.)
-- Check "Auto-submit after filling" for full automation
-- Click **Save Profile**
+## Quick start: one LinkedIn job
 
-### Fill Current Job
-- Open any job posting
-- Click **Fill Current Form** or press `Ctrl+Shift+F`
-- Review and submit
+1. Open a LinkedIn job detail page that has an **Easy Apply** button.
+2. Open the JobPilot popup and save your profile.
+3. Click **Start**. JobPilot opens Easy Apply if it is not already open, fills fields it can confidently map, and advances through the form.
+4. By default, JobPilot stops at review. You submit manually. To enable automatic submission, turn on **Auto-submit** in the popup or Settings page.
 
-### Auto-Apply Mode
-- Go to LinkedIn jobs search page
-- Click **Auto-Apply Mode** or press `Ctrl+Shift+A`
-- Extension applies to jobs automatically
+JobPilot does not guess answers to custom questions or bypass file-upload controls. If a required answer is missing, the popup flow waits for you; in queue processing, the job tab is brought forward for review and the queue pauses.
 
-### Job Queue (Advanced)
-- Click **Job Queue** in popup
-- Click **Scrape Jobs** to extract jobs from page
-- Add filters (keywords, exclude terms, platform)
-- Click **Start Queue** to process
-- Track progress in real-time
+## Queue mode
 
-## ⚙️ Settings
+1. Open a LinkedIn, Naukri, or Indeed job search page in a tab.
+2. Open **Queue** from the popup and choose **Scrape Jobs**. LinkedIn scraping keeps Easy Apply listings only.
+3. Start the queue. The background worker opens and processes LinkedIn job pages, even if the popup closes.
+4. With auto-submit off, the queue stops at a review-required job and leaves its tab open. Review/submit it, then start the queue again to process remaining pending jobs.
 
-**Profile**: Name, email, phone, LinkedIn URL, city, job title, experience, company  
-**Auto-submit**: Automatically click submit after filling  
-**Skip duplicates**: Don't apply to same job twice  
-**Save answers**: Remember answers to questions  
-**Rate limits**: Max applications per hour/day (default: 10/50)  
-**Delays**: Random delay range between actions  
+The default between-application delay is 30–120 seconds, and the hourly cap is 10 confirmed submissions. These limits are intentional; speeding up typing does not remove platform rate limits.
 
-## 📋 How It Works
+## Profile and settings
 
-### LinkedIn Easy Apply
-1. Click "Easy Apply" on job
-2. Extension detects modal, analyzes fields
-3. Fills fields page-by-page (up to 10 pages)
-4. Clicks Next → Continue → Review → Submit
-5. Handles "Save application?" dialog automatically
-6. Tracks successful submission
+The popup stores the fields most commonly used by LinkedIn forms: name, email, phone, LinkedIn URL, city, experience, current company, job title, and cover letter. The Settings page includes additional profile and filtering fields. Both pages share the same local profile and settings data.
 
-### Queue Processing
-1. Scrape jobs from search results
-2. Add to queue with status tracking
-3. Process queue with rate limiting
-4. Open job → Fill → Submit → Close
-5. Random delays between applications
-6. Real-time statistics updates
+If you previously used an older version, reload the extension and reopen the Settings page. Legacy profile keys and settings stored in Chrome Sync are migrated to the current local format.
 
-### Answer Memory
-- Pattern matching for common questions
-- Categories: motivation, salary, relocation, visa, experience
-- Auto-learns from responses
-- Smart generation based on profile
-- Export/import functionality
+## Troubleshooting
 
-## 🎨 Keyboard Shortcuts
+- **“Could not reach this page” / no content script:** reload the extension, then refresh the job tab. Confirm the URL is a supported site.
+- **Easy Apply button not found:** open an actual job detail page, not just the search results, and confirm the listing has Easy Apply.
+- **A field is left blank:** complete it yourself; JobPilot intentionally does not guess custom questions, demographic answers, or file uploads.
+- **Queue job marked unsupported:** automatic application is currently LinkedIn Easy Apply only. Naukri/Indeed can be scraped and opened manually.
+- **Extension changes do not appear:** click **Reload** on `chrome://extensions/`, then refresh the open job tabs.
+- **Check runtime errors:** on `chrome://extensions/`, open the JobPilot **service worker** inspector for background/queue errors; inspect the job page console for content-script errors.
 
-`Ctrl+Shift+F` - Fill current form  
-`Ctrl+Shift+A` - Start auto-apply mode  
+## Privacy
 
-## 🛡️ Privacy
+Profile, settings, queue, rate-limit timestamps, and application history are stored in `chrome.storage.local` (with one-time migration from older Sync settings). Job listings are read from the open job pages. The extension does not send profile data to a JobPilot server.
 
-- **100% Local** - All data in your browser only
-- **No tracking** - Zero external servers
-- **Stealth mode** - Human-like behavior
-- **Rate limiting** - Prevents spam/flags
-- **Open source** - Review code yourself
+## Project files
 
-## ⚠️ Disclaimer
-
-Use responsibly:
-- Only apply to relevant positions
-- Review before submitting when possible
-- Respect platform terms of service
-- Use rate limiting to avoid detection
-- Educational purposes
-
-## 🆚 vs FastApply
-
-| Feature | FastApply | JobPilot |
-|---------|-----------|----------|
-| Price | Paid | **Free** |
-| LinkedIn Auto | ✅ | ✅ |
-| Multi-platform | ✅ | ✅ |
-| Job Queue | ✅ | ✅ |
-| Answer Memory | ✅ | ✅ |
-| Stealth Mode | ✅ | ✅ |
-| Open Source | ❌ | **✅** |
-| Privacy | Cloud | **Local** |
-| Customizable | ❌ | **✅** |
-
-## 🔧 Troubleshooting
-
-**Form not filling?**
-- Save profile first
-- Refresh page and retry
-- Check browser console
-
-**Modal closes immediately?**
-- Disable "Auto-submit" in settings
-- Extension fills fields only
-- You review and submit manually
-
-**Too fast/getting flagged?**
-- Increase rate limits
-- Enable longer delays
-- Use queue processing
-
-## 📦 Structure
-
-```
-extension/
-├── manifest.json           # Extension config
-├── popup.html/js          # Main UI
-├── content.js             # Page interaction
-├── background.js          # Background tasks
-├── linkedin-handler.js    # LinkedIn Easy Apply
-├── job-queue-manager.js   # Queue system
-├── answer-memory.js       # Answer learning
-├── stealth-mode.js        # Human behavior
-├── job-scraper.js         # Job extraction
-├── queue-manager.html     # Queue UI
-├── dashboard.html         # Analytics
-└── settings.html          # Config
-```
-
-## 📄 License
-
-MIT License - Free to use and modify
-
----
-
-**Built to help job seekers worldwide. Good luck! 🎯**
+- `manifest.json` — Manifest V3 permissions, service worker, commands, and content-script matches
+- `background.js` — background message routing, tabs, alarms, and install-time migrations
+- `auto-apply-orchestrator.js` — persistent queue processor
+- `content.js` / `utils.js` — LinkedIn Easy Apply state machine and form helpers
+- `job-scraper.js` / `job-queue-manager.js` — listing collection and local queue storage
+- `popup.html` / `popup.js` — profile and quick actions
+- `queue-manager.html` / `queue-manager.js` — queue UI
+- `dashboard.html` / `dashboard.js` — application history and analytics
+- `settings.html` / `settings.js` — profile and preferences

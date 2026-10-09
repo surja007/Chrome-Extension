@@ -1,15 +1,22 @@
 {
   "manifest_version": 3,
   "name": "JobPilot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "LinkedIn Easy Apply automation assistant",
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "tabs",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
-    "https://www.linkedin.com/*"
+    "https://www.linkedin.com/*",
+    "https://linkedin.com/*",
+    "https://*.naukri.com/*",
+    "https://*.indeed.com/*",
+    "https://*.indeed.co.in/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -22,10 +29,32 @@
       "128": "icon128.png"
     }
   },
+  "commands": {
+    "fill-current-form": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+F",
+        "mac": "Command+Shift+F"
+      },
+      "description": "Fill and apply on the current job page"
+    },
+    "start-auto-apply": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+A",
+        "mac": "Command+Shift+A"
+      },
+      "description": "Start auto-apply on the job queue"
+    }
+  },
   "content_scripts": [
     {
-      "matches": ["https://www.linkedin.com/jobs/*"],
-      "js": ["utils.js", "content.js"],
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://linkedin.com/jobs/*",
+        "https://*.naukri.com/*",
+        "https://*.indeed.com/*",
+        "https://*.indeed.co.in/*"
+      ],
+      "js": ["utils.js", "job-scraper.js", "content.js"],
       "run_at": "document_idle"
     }
   ],

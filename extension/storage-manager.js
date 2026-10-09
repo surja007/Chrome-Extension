@@ -22,7 +22,11 @@ class StorageManager {
 
   async getProfile() {
     const { profile } = await chrome.storage.local.get('profile');
-    return profile || null;
+    if (!profile) return null;
+
+    if (!profile.fullName && profile.name) profile.fullName = profile.name;
+    if (!profile.linkedinUrl && profile.linkedin) profile.linkedinUrl = profile.linkedin;
+    return profile;
   }
 
   // Application Tracking
@@ -238,21 +242,45 @@ class StorageManager {
   }
 
   // Settings
+  // NOTE: uses chrome.storage.local (not sync) so the popup, settings page and
+  // background worker all read/write the SAME settings object.
   async saveSettings(settings) {
-    await chrome.storage.sync.set({ settings });
+    await chrome.storage.local.set({ settings });
     return true;
   }
 
   async getSettings() {
-    const { settings } = await chrome.storage.sync.get('settings');
-    return settings || {
+    const { settings: localSettings } = await chrome.storage.local.get('settings');
+    let legacySettings = null;
+
+    // Older versions wrote the Settings page to Sync, while the popup wrote
+    // auto-submit to Local. Merge both, with Local values taking precedence.
+    if (chrome.storage.sync) {
+      const legacy = await chrome.storage.sync.get('settings');
+      legacySettings = legacy.settings || null;
+    }
+
+    if (localSettings && legacySettings) {
+      const merged = { ...legacySettings, ...localSettings };
+      await chrome.storage.local.set({ settings: merged });
+      return merged;
+    }
+    if (localSettings) return localSettings;
+    if (legacySettings) {
+      await chrome.storage.local.set({ settings: legacySettings });
+      return legacySettings;
+    }
+
+    return {
       autoSubmit: false,
       autoApply: false,
       minMatchScore: 70,
       dailyLimit: 50,
       coverLetterTone: 'professional',
       skipDuplicates: true,
-      saveAnswers: true
+      saveAnswers: true,
+      minDelay: 30000,
+      maxDelay: 120000
     };
   }
 
