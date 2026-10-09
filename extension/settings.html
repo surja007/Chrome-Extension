@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>JobPilot Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f7fa; padding: 20px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    
+    h1 { color: #0e5a6b; margin-bottom: 20px; }
+    
+    .card { background: white; padding: 24px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .card h2 { color: #0e5a6b; font-size: 18px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #e8eef1; }
+    
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 600; color: #333; }
+    .form-group input, .form-group select, .form-group textarea { 
+      width: 100%; 
+      padding: 10px; 
+      border: 1px solid #cbd7dc; 
+      border-radius: 4px; 
+      font: inherit; 
+    }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-group input[type="checkbox"] { width: auto; margin-right: 8px; }
+    .form-group input[type="number"] { width: 150px; }
+    
+    .checkbox-group { display: flex; align-items: center; margin: 10px 0; }
+    
+    .btn { 
+      padding: 12px 24px; 
+      border: none; 
+      border-radius: 6px; 
+      background: #0e5a6b; 
+      color: white; 
+      font-weight: 600; 
+      cursor: pointer; 
+      margin-right: 10px;
+    }
+    .btn:hover { background: #0a4454; }
+    .btn-secondary { background: #cbd7dc; color: #12252e; }
+    .btn-secondary:hover { background: #b0bcc4; }
+    .btn-danger { background: #e0561b; }
+    .btn-danger:hover { background: #c44615; }
+    
+    .status { padding: 12px; margin: 16px 0; border-radius: 4px; display: none; }
+    .status.show { display: block; }
+    .status.success { background: #d3eddf; color: #1d6b40; }
+    .status.error { background: #fbe3d6; color: #a63d0d; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    
+    .help-text { font-size: 12px; color: #5d727c; margin-top: 4px; }
+    
+    .range-input { display: flex; align-items: center; gap: 10px; }
+    .range-input input[type="range"] { flex: 1; }
+    .range-input .value { font-weight: 600; color: #0e5a6b; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>⚙️ JobPilot Settings</h1>
+    <p>Configure your profile and preferences</p>
+  </div>
+  
+  <div class="container">
+    
+    <!-- Profile Settings -->
+    <div class="card">
+      <h2>Personal Information</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="name" placeholder="John Doe">
+        </div>
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="email" placeholder="john@example.com">
+        </div>
+      </div>
+      
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Phone *</label>
+          <input type="tel" id="phone" placeholder="+91 9876543210">
+        </div>
+        <div class="form-group">
+          <label>City/Location *</label>
+          <input type="text" id="city" placeholder="Bangalore">
+        </div>
+      </div>
+      
+      <div class="grid-2">
+        <div class="form-group">
+          <label>LinkedIn URL</label>
+          <input type="url" id="linkedin" placeholder="https://linkedin.com/in/johndoe">
+        </div>
+        <div class="form-group">
+          <label>GitHub URL</label>
+          <input type="url" id="github" placeholder="https://github.com/johndoe">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>Portfolio/Website</label>
+        <input type="url" id="website" placeholder="https://johndoe.com">
+      </div>
+    </div>
+    
+    <!-- Professional Details -->
+    <div class="card">
+      <h2>Professional Details</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Current/Target Job Title *</label>
+          <input type="text" id="jobTitle" placeholder="Full Stack Developer">
+        </div>
+        <div class="form-group">
+          <label>Years of Experience *</label>
+          <input type="number" id="experience" placeholder="5" min="0" max="50">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>Current Company</label>
+        <input type="text" id="company" placeholder="Tech Corp">
+      </div>
+      
+      <div class="form-group">
+        <label>Skills (comma-separated) *</label>
+        <textarea id="skills" placeholder="JavaScript, React, Node.js, Python, AWS"></textarea>
+        <div class="help-text">Enter your technical skills separated by commas</div>
+      </div>
+      
+      <div class="form-group">
+        <label>Professional Summary</label>
+        <textarea id="summary" placeholder="Results-driven software engineer with 5+ years of experience..."></textarea>
+        <div class="help-text">Brief professional summary for resume/applications</div>
+      </div>
+    </div>
+    
+    <!-- Job Preferences -->
+    <div class="card">
+      <h2>Job Preferences</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Minimum Salary (₹ LPA)</label>
+          <input type="number" id="minSalary" placeholder="8" min="0">
+        </div>
+        <div class="form-group">
+          <label>Maximum Salary (₹ LPA)</label>
+          <input type="number" id="maxSalary" placeholder="15" min="0">
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>Preferred Locations (comma-separated)</label>
+        <input type="text" id="preferredLocations" placeholder="Bangalore, Hyderabad, Remote">
+      </div>
+      
+      <div class="form-group">
+        <label>Work Mode Preference</label>
+        <select id="workMode">
+          <option value="any">Any</option>
+          <option value="remote">Remote Only</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="onsite">On-site</option>
+        </select>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="willingToRelocate">
+        <label>Willing to relocate</label>
+      </div>
+      
+      <div class="form-group">
+        <label>Notice Period (days)</label>
+        <input type="number" id="noticePeriod" placeholder="30" min="0">
+      </div>
+      
+      <div class="form-group">
+        <label>Employment Type</label>
+        <select id="employmentType">
+          <option value="full-time">Full-time</option>
+          <option value="contract">Contract</option>
+          <option value="part-time">Part-time</option>
+          <option value="any">Any</option>
+        </select>
+      </div>
+    </div>
+    
+    <!-- Automation Settings -->
+    <div class="card">
+      <h2>Automation Settings</h2>
+      
+      <div class="form-group">
+        <label>Auto-Apply Mode</label>
+        <select id="autoApplyMode">
+          <option value="copilot">Copilot (Fill, you review & submit)</option>
+          <option value="autonomous">Autonomous (AI fills & submits)</option>
+          <option value="stealth">Stealth (Background automation)</option>
+        </select>
+        <div class="help-text">Controls how JobPilot handles applications</div>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="autoSubmit">
+        <label>Auto-submit applications after filling</label>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="skipDuplicates" checked>
+        <label>Skip jobs already applied to</label>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="saveAnswers" checked>
+        <label>Remember answers to application questions</label>
+      </div>
+      
+      <div class="form-group">
+        <label>Minimum Match Score for Auto-Apply</label>
+        <div class="range-input">
+          <input type="range" id="minMatchScore" min="0" max="100" value="70">
+          <span class="value"><span id="matchScoreValue">70</span>%</span>
+        </div>
+        <div class="help-text">Only auto-apply to jobs with match score above this threshold</div>
+      </div>
+      
+      <div class="form-group">
+        <label>Daily Application Limit</label>
+        <input type="number" id="dailyLimit" value="50" min="1" max="200">
+        <div class="help-text">Maximum applications per day (safety limit)</div>
+      </div>
+    </div>
+    
+    <!-- Cover Letter Settings -->
+    <div class="card">
+      <h2>Cover Letter Settings</h2>
+      
+      <div class="form-group">
+        <label>Default Tone</label>
+        <select id="coverLetterTone">
+          <option value="professional">Professional</option>
+          <option value="friendly">Friendly</option>
+          <option value="formal">Formal</option>
+        </select>
+      </div>
+      
+      <div class="form-group">
+        <label>Default Length</label>
+        <select id="coverLetterLength">
+          <option value="short">Short (150-200 words)</option>
+          <option value="medium">Medium (250-350 words)</option>
+          <option value="long">Long (400-500 words)</option>
+        </select>
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="generateCoverLetter" checked>
+        <label>Generate cover letter for each application</label>
+      </div>
+    </div>
+    
+    <!-- Filters & Exclusions -->
+    <div class="card">
+      <h2>Job Filters & Exclusions</h2>
+      
+      <div class="form-group">
+        <label>Exclude Keywords (comma-separated)</label>
+        <input type="text" id="excludeKeywords" placeholder="sales, night shift, unpaid">
+        <div class="help-text">Jobs containing these keywords will be skipped</div>
+      </div>
+      
+      <div class="form-group">
+        <label>Exclude Companies (comma-separated)</label>
+        <input type="text" id="excludeCompanies" placeholder="Company A, Company B">
+      </div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="onlyEasyApply">
+        <label>Only apply to Easy Apply jobs</label>
+      </div>
+    </div>
+    
+    <!-- Actions -->
+    <div class="card">
+      <button id="saveSettings" class="btn">💾 Save All Settings</button>
+      <button id="resetSettings" class="btn btn-secondary">🔄 Reset to Default</button>
+      <button id="exportData" class="btn btn-secondary">📥 Export Data</button>
+      <button id="importData" class="btn btn-secondary">📤 Import Data</button>
+      <input type="file" id="importFile" accept=".json" style="display: none;">
+      
+      <div id="status" class="status"></div>
+    </div>
+  </div>
+  
+  <script src="ai-engine.js"></script>
+  <script src="storage-manager.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

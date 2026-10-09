@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Job Queue Manager</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f7fafc;
+      padding: 24px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+    
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+      color: #1a202c;
+    }
+    
+    .header p {
+      color: #718096;
+      font-size: 14px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #718096;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    
+    .stat-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: #1a202c;
+    }
+    
+    .stat-card.pending .stat-value { color: #f59e0b; }
+    .stat-card.completed .stat-value { color: #10b981; }
+    .stat-card.failed .stat-value { color: #ef4444; }
+    
+    .controls {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #4a5568;
+    }
+    
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .job-list {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    
+    .job-item {
+      padding: 20px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      transition: background 0.2s;
+    }
+    
+    .job-item:hover {
+      background: #f7fafc;
+    }
+    
+    .job-item:last-child {
+      border-bottom: none;
+    }
+    
+    .job-checkbox {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+    
+    .job-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background: #f7fafc;
+    }
+    
+    .job-info {
+      flex: 1;
+    }
+    
+    .job-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 4px;
+    }
+    
+    .job-company {
+      font-size: 14px;
+      color: #4a5568;
+      margin-bottom: 4px;
+    }
+    
+    .job-meta {
+      font-size: 12px;
+      color: #718096;
+    }
+    
+    .job-status {
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .status-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .status-completed {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .status-failed {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
+    .job-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .icon-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      background: #f7fafc;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+    
+    .icon-btn:hover {
+      background: #e2e8f0;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+    
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+    }
+    
+    .filters {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 24px;
+    }
+    
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+    
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .filter-group label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .filter-group input, .filter-group select {
+      padding: 10px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 14px;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 16px;
+    }
+    
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>📋 Job Queue Manager</h1>
+      <p>Manage and process your job applications</p>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+      </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card pending">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value" id="statPending">0</div>
+      </div>
+      <div class="stat-card completed">
+        <div class="stat-label">Completed</div>
+        <div class="stat-value" id="statCompleted">0</div>
+      </div>
+      <div class="stat-card failed">
+        <div class="stat-label">Failed</div>
+        <div class="stat-value" id="statFailed">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Blacklisted</div>
+        <div class="stat-value" id="statBlacklisted">0</div>
+      </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filters">
+      <div class="filter-grid">
+        <div class="filter-group">
+          <label>Status</label>
+          <select id="filterStatus">
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Platform</label>
+          <select id="filterPlatform">
+            <option value="all">All Platforms</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="naukri">Naukri</option>
+            <option value="indeed">Indeed</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label>Search</label>
+          <input type="text" id="filterSearch" placeholder="Company or title...">
+        </div>
+      </div>
+    </div>
+    
+    <!-- Controls -->
+    <div class="controls">
+      <button class="btn btn-success" id="startQueue">▶️ Start Queue</button>
+      <button class="btn btn-danger" id="stopQueue" disabled>⏸️ Stop Queue</button>
+      <button class="btn btn-primary" id="scrapeJobs">🔍 Scrape Jobs</button>
+      <button class="btn btn-secondary" id="clearCompleted">🗑️ Clear Completed</button>
+      <button class="btn btn-secondary" id="exportQueue">📥 Export</button>
+      <button class="btn btn-secondary" id="importQueue">📤 Import</button>
+      <input type="file" id="importFile" accept=".json" style="display: none;">
+    </div>
+    
+    <!-- Job List -->
+    <div class="job-list" id="jobList">
+      <div class="empty-state">
+        <div class="empty-state-icon">📭</div>
+        <h3>No jobs in queue</h3>
+        <p>Scrape jobs or add them manually to get started</p>
+      </div>
+    </div>
+  </div>
+  
+  <script src="storage-manager.js"></script>
+  <script src="job-queue-manager.js"></script>
+  <script src="job-scraper.js"></script>
+  <script>
+    let queueManager;
+    let isProcessing = false;
+    
+    // Initialize
+    (async () => {
+      queueManager = new JobQueueManager();
+      await queueManager.initialize();
+      renderQueue();
+      updateStats();
+    })();
+    
+    // Render queue
+    function renderQueue() {
+      const list = document.getElementById('jobList');
+      const filterStatus = document.getElementById('filterStatus').value;
+      const filterPlatform = document.getElementById('filterPlatform').value;
+      const filterSearch = document.getElementById('filterSearch').value.toLowerCase();
+      
+      let jobs = queueManager.queue.filter(job => {
+        if (filterStatus !== 'all' && job.status !== filterStatus) return false;
+        if (filterPlatform !== 'all' && job.platform !== filterPlatform) return false;
+        if (filterSearch) {
+          const text = `${job.title} ${job.company}`.toLowerCase();
+          if (!text.includes(filterSearch)) return false;
+        }
+        return true;
+      });
+      
+      if (jobs.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">📭</div>
+            <h3>No jobs found</h3>
+            <p>Try adjusting your filters</p>
+          </div>
+        `;
+        return;
+      }
+      
+      list.innerHTML = jobs.map(job => `
+        <div class="job-item" data-id="${job.id}">
+          <input type="checkbox" class="job-checkbox" ${job.status === 'completed' ? 'checked disabled' : ''}>
+          <div class="job-icon">${getPlatformIcon(job.platform)}</div>
+          <div class="job-info">
+            <div class="job-title">${job.title}</div>
+            <div class="job-company">${job.company}</div>
+            <div class="job-meta">${job.location} • ${job.platform}</div>
+          </div>
+          <span class="job-status status-${job.status}">${job.status}</span>
+          <div class="job-actions">
+            <button class="icon-btn" onclick="openJob('${job.url}')" title="Open">🔗</button>
+            <button class="icon-btn" onclick="blacklistCompany('${job.company}')" title="Blacklist">🚫</button>
+            <button class="icon-btn" onclick="removeJob('${job.id}')" title="Remove">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    function getPlatformIcon(platform) {
+      const icons = {
+        linkedin: '💼',
+        naukri: '📋',
+        indeed: '🔍'
+      };
+      return icons[platform] || '📄';
+    }
+    
+    function updateStats() {
+      const stats = queueManager.getStats();
+      document.getElementById('statPending').textContent = stats.pending;
+      document.getElementById('statCompleted').textContent = stats.completed;
+      document.getElementById('statFailed').textContent = stats.failed;
+      document.getElementById('statBlacklisted').textContent = stats.blacklisted;
+      
+      const progress = stats.total > 0 ? (stats.completed / stats.total * 100) : 0;
+      document.getElementById('progressFill').style.width = progress + '%';
+    }
+    
+    // Start queue processing
+    document.getElementById('startQueue').addEventListener('click', async () => {
+      if (isProcessing) return;
+      isProcessing = true;
+      
+      document.getElementById('startQueue').disabled = true;
+      document.getElementById('stopQueue').disabled = false;
+      
+      const profile = await StorageManager.getProfile();
+      const settings = await StorageManager.getSettings();
+      
+      const results = await queueManager.processQueue(profile, settings);
+      
+      isProcessing = false;
+      document.getElementById('startQueue').disabled = false;
+      document.getElementById('stopQueue').disabled = true;
+      
+      renderQueue();
+      updateStats();
+      
+      alert(`Queue completed!\n✅ Success: ${results.success}\n❌ Failed: ${results.failed}\n⏭️ Skipped: ${results.skipped}`);
+    });
+    
+    // Stop queue
+    document.getElementById('stopQueue').addEventListener('click', () => {
+      isProcessing = false;
+      document.getElementById('startQueue').disabled = false;
+      document.getElementById('stopQueue').disabled = true;
+    });
+    
+    // Scrape jobs
+    document.getElementById('scrapeJobs').addEventListener('click', async () => {
+      chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+        const response = await chrome.tabs.sendMessage(tabs[0].id, {
+          action: 'scrapeJobs',
+          maxPages: 5
+        });
+        
+        if (response && response.jobs) {
+          await queueManager.addMultipleJobs(response.jobs);
+          renderQueue();
+          updateStats();
+          alert(`Added ${response.jobs.length} jobs to queue!`);
+        }
+      });
+    });
+    
+    // Clear completed
+    document.getElementById('clearCompleted').addEventListener('click', () => {
+      queueManager.queue = queueManager.queue.filter(j => j.status !== 'completed');
+      queueManager.save();
+      renderQueue();
+      updateStats();
+    });
+    
+    // Export queue
+    document.getElementById('exportQueue').addEventListener('click', () => {
+      const data = JSON.stringify({
+        queue: queueManager.queue,
+        blacklist: Array.from(queueManager.blacklistedCompanies),
+        exportedAt: new Date().toISOString()
+      }, null, 2);
+      
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `jobpilot-queue-${Date.now()}.json`;
+      a.click();
+    });
+    
+    // Import queue
+    document.getElementById('importQueue').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+    
+    document.getElementById('importFile').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      await queueManager.addMultipleJobs(data.queue || []);
+      if (data.blacklist) {
+        data.blacklist.forEach(c => queueManager.blacklistCompany(c));
+      }
+      
+      renderQueue();
+      updateStats();
+      alert('Queue imported successfully!');
+    });
+    
+    // Filters
+    document.getElementById('filterStatus').addEventListener('change', renderQueue);
+    document.getElementById('filterPlatform').addEventListener('change', renderQueue);
+    document.getElementById('filterSearch').addEventListener('input', renderQueue);
+    
+    // Actions
+    window.openJob = (url) => chrome.tabs.create({ url });
+    window.blacklistCompany = async (company) => {
+      await queueManager.blacklistCompany(company);
+      renderQueue();
+      updateStats();
+      alert(`${company} blacklisted!`);
+    };
+    window.removeJob = async (id) => {
+      queueManager.queue = queueManager.queue.filter(j => j.id !== id);
+      await queueManager.save();
+      renderQueue();
+      updateStats();
+    };
+  </script>
+</body>
+</html>

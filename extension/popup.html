@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f7f9fc;
+      color: #1a202c;
+    }
+    
+    .header {
+      background: linear-gradient(135deg, #0077b5 0%, #00a0dc 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .header p {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    
+    .content {
+      padding: 16px;
+    }
+    
+    .section {
+      background: white;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #2d3748;
+    }
+    
+    .form-group {
+      margin-bottom: 12px;
+    }
+    
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #4a5568;
+      margin-bottom: 4px;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 13px;
+      transition: border-color 0.2s;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #0077b5;
+    }
+    
+    .form-group textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0;
+    }
+    
+    .checkbox-group input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    
+    .checkbox-group label {
+      font-size: 13px;
+      color: #4a5568;
+      cursor: pointer;
+      margin: 0;
+    }
+    
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    
+    .btn-primary {
+      background: #0077b5;
+      color: white;
+    }
+    
+    .btn-primary:hover:not(:disabled) {
+      background: #006399;
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-success:hover:not(:disabled) {
+      background: #059669;
+    }
+    
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-danger:hover:not(:disabled) {
+      background: #dc2626;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    
+    .status {
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-top: 12px;
+      display: none;
+    }
+    
+    .status.show {
+      display: block;
+    }
+    
+    .status.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    
+    .status.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+    
+    .status.warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    
+    .log-panel {
+      background: #1a202c;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    
+    .log-entry {
+      margin-bottom: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    
+    .log-entry.INFO { color: #90cdf4; }
+    .log-entry.SUCCESS { color: #9ae6b4; }
+    .log-entry.WARN { color: #fbd38d; }
+    .log-entry.ERROR { color: #fc8181; }
+    
+    .empty-log {
+      color: #718096;
+      text-align: center;
+      padding: 20px;
+    }
+    
+    .rate-limit {
+      font-size: 11px;
+      color: #718096;
+      text-align: center;
+      margin-top: 8px;
+    }
+    
+    .collapsible {
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .collapsible::after {
+      content: '▼';
+      font-size: 10px;
+      transition: transform 0.2s;
+    }
+    
+    .collapsible.collapsed::after {
+      transform: rotate(-90deg);
+    }
+    
+    .collapse-content {
+      max-height: 1000px;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    
+    .collapse-content.hidden {
+      max-height: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎯 JobPilot</h1>
+    <p>LinkedIn Easy Apply Assistant</p>
+  </div>
+  
+  <div class="content">
+    <!-- Profile Section -->
+    <div class="section">
+      <div class="section-title collapsible" id="profileToggle">
+        Profile Setup
+      </div>
+      <div class="collapse-content" id="profileContent">
+        <div class="form-group">
+          <label>Full Name *</label>
+          <input type="text" id="fullName" placeholder="John Doe">
+        </div>
+        
+        <div class="form-group">
+          <label>Email *</label>
+          <input type="email" id="email" placeholder="john@example.com">
+        </div>
+        
+        <div class="form-group">
+          <label>Phone *</label>
+          <input type="tel" id="phone" placeholder="+1 234 567 8900">
+        </div>
+        
+        <div class="form-group">
+          <label>LinkedIn URL</label>
+          <input type="text" id="linkedinUrl" placeholder="linkedin.com/in/johndoe">
+        </div>
+        
+        <div class="form-group">
+          <label>City</label>
+          <input type="text" id="city" placeholder="San Francisco">
+        </div>
+        
+        <div class="form-group">
+          <label>Years of Experience</label>
+          <input type="text" id="experience" placeholder="5">
+        </div>
+        
+        <div class="form-group">
+          <label>Current Company</label>
+          <input type="text" id="company" placeholder="Tech Corp">
+        </div>
+        
+        <div class="form-group">
+          <label>Job Title</label>
+          <input type="text" id="jobTitle" placeholder="Software Engineer">
+        </div>
+        
+        <div class="form-group">
+          <label>Cover Letter (Optional)</label>
+          <textarea id="coverLetter" placeholder="I am excited to apply..."></textarea>
+        </div>
+        
+        <button class="btn btn-primary" id="saveProfile">
+          💾 Save Profile
+        </button>
+        
+        <div class="status" id="saveStatus"></div>
+      </div>
+    </div>
+    
+    <!-- Controls Section -->
+    <div class="section">
+      <div class="section-title">Quick Actions</div>
+      
+      <div class="checkbox-group">
+        <input type="checkbox" id="autoSubmit">
+        <label for="autoSubmit">Auto-submit (skip review)</label>
+      </div>
+      
+      <div class="btn-group">
+        <button class="btn btn-success" id="startBtn">
+          ▶️ Start
+        </button>
+        <button class="btn btn-danger" id="stopBtn" disabled>
+          ⏸️ Stop
+        </button>
+      </div>
+      
+      <div class="rate-limit" id="rateLimit">
+        Applications: <span id="appCount">0</span>/10 per hour
+      </div>
+      
+      <div class="status" id="actionStatus"></div>
+    </div>
+    
+    <!-- Log Section -->
+    <div class="section">
+      <div class="section-title collapsible collapsed" id="logToggle">
+        Live Log
+      </div>
+      <div class="collapse-content hidden" id="logContent">
+        <div class="log-panel" id="logPanel">
+          <div class="empty-log">No activity yet</div>
+        </div>
+        <button class="btn btn-primary" id="clearLog" style="margin-top: 8px; font-size: 12px; padding: 6px;">
+          Clear Log
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
