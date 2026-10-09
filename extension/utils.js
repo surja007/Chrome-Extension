@@ -4,8 +4,7 @@
 const SELECTORS = {
   EASY_APPLY_BUTTON: [
     'button[aria-label*="Easy Apply"]',
-    'button:has-text("Easy Apply")',
-    '.jobs-apply-button--top-card button'
+    'button:has-text("Easy Apply")'
   ],
   
   MODAL: [
@@ -133,10 +132,12 @@ function waitForElement(selectors, options = {}) {
     }
 
     let timeoutId;
+    let cancelInterval;
     let observer;
 
     const cleanup = () => {
       if (timeoutId) clearTimeout(timeoutId);
+      if (cancelInterval) clearInterval(cancelInterval);
       if (observer) observer.disconnect();
     };
 
@@ -146,7 +147,18 @@ function waitForElement(selectors, options = {}) {
       reject(new Error(`Timeout waiting for: ${selectors.join(' OR ')}`));
     }, timeout);
 
-    // Observe DOM changes
+    if (typeof options.shouldCancel === 'function') {
+      cancelInterval = setInterval(() => {
+        if (options.shouldCancel()) {
+          cleanup();
+          reject(new Error('Wait cancelled'));
+        }
+      }, 100);
+    }
+
+    // Observe both inserted nodes and state changes. Many job sites keep the
+    // dialog mounted and reveal it by changing class/style/aria-hidden; a
+    // childList-only observer would time out even though the modal is visible.
     observer = new MutationObserver(() => {
       const element = findElement(selectors, parent);
       if (element) {
@@ -155,11 +167,21 @@ function waitForElement(selectors, options = {}) {
       }
     });
 
-    observer.observe(parent, {
+    observer.observe(parent === document ? document.documentElement : parent, {
       childList: true,
       subtree: true,
-      attributes: false
+      attributes: true,
+      attributeFilter: ['class', 'style', 'aria-hidden', 'open'],
+      characterData: true
     });
+
+    // Re-check after observing to close the race between the initial query
+    // and attaching the observer.
+    const appearedDuringSetup = findElement(selectors, parent);
+    if (appearedDuringSetup) {
+      cleanup();
+      resolve(appearedDuringSetup);
+    }
   });
 }
 
@@ -175,8 +197,10 @@ function findElement(selectors, parent = document) {
         if (match) {
           const [, baseSelector, text] = match;
           const elements = parent.querySelectorAll(baseSelector);
+          const expectedText = text.trim().toLowerCase();
           for (const el of elements) {
-            if (el.textContent.trim() === text && isVisible(el)) {
+            const actualText = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            if (actualText.includes(expectedText) && isVisible(el)) {
               return el;
             }
           }
@@ -200,14 +224,26 @@ function findElement(selectors, parent = document) {
  * Check if element is visible
  */
 function isVisible(element) {
-  if (!element) return false;
-  if (element.offsetParent === null) return false;
-  
+  if (!element || !element.isConnected) return false;
+
+  // Check ancestors too: a child can compute to `display:block` while an
+  // ancestor modal is hidden with `display:none`.
+  for (let node = element; node && node.nodeType === 1; node = node.parentElement) {
+    const style = window.getComputedStyle(node);
+    const opacity = style.opacity;
+    if (style.display === 'none' || style.visibility === 'hidden' || (opacity !== '' && Number(opacity) === 0)) {
+      return false;
+    }
+  }
+
   const style = window.getComputedStyle(element);
-  if (style.display === 'none') return false;
-  if (style.visibility === 'hidden') return false;
-  if (style.opacity === '0') return false;
-  
+  // `offsetParent` is null for fixed-position dialogs even when they are
+  // visible. Only use it as a hidden check for non-fixed elements.
+  if (style.position !== 'fixed' && element.offsetParent === null) {
+    const rects = element.getClientRects ? element.getClientRects() : null;
+    if (rects && rects.length === 0) return false;
+  }
+
   return true;
 }
 
@@ -285,24 +321,26 @@ async function closeModal() {
 async function checkRateLimit() {
   const data = await chrome.storage.local.get(['rateLimitData']);
   const rateLimitData = data.rateLimitData || { applications: [], hourlyLimit: 10 };
-  
+  const hourlyLimit = Math.max(1, Number(rateLimitData.hourlyLimit) || 10);
   const now = Date.now();
   const oneHourAgo = now - 60 * 60 * 1000;
-  
-  // Filter applications from last hour
-  const recentApps = rateLimitData.applications.filter(timestamp => timestamp > oneHourAgo);
-  
-  if (recentApps.length >= rateLimitData.hourlyLimit) {
+  const applications = Array.isArray(rateLimitData.applications) ? rateLimitData.applications : [];
+  const recentApps = applications
+    .filter(timestamp => Number.isFinite(Number(timestamp)) && Number(timestamp) > oneHourAgo)
+    .map(Number)
+    .sort((a, b) => a - b);
+
+  if (recentApps.length >= hourlyLimit) {
     return {
       allowed: false,
       remaining: 0,
-      resetIn: Math.ceil((recentApps[0] + 60 * 60 * 1000 - now) / 1000 / 60)
+      resetIn: Math.max(0, Math.ceil((recentApps[0] + 60 * 60 * 1000 - now) / 1000 / 60))
     };
   }
-  
+
   return {
     allowed: true,
-    remaining: rateLimitData.hourlyLimit - recentApps.length,
+    remaining: hourlyLimit - recentApps.length,
     resetIn: 0
   };
 }
@@ -313,13 +351,15 @@ async function checkRateLimit() {
 async function recordApplication() {
   const data = await chrome.storage.local.get(['rateLimitData']);
   const rateLimitData = data.rateLimitData || { applications: [], hourlyLimit: 10 };
-  
   const now = Date.now();
   const oneHourAgo = now - 60 * 60 * 1000;
-  
-  // Keep only last hour's applications
-  rateLimitData.applications = rateLimitData.applications.filter(t => t > oneHourAgo);
+  const applications = Array.isArray(rateLimitData.applications) ? rateLimitData.applications : [];
+
+  // Keep only numeric timestamps from the last hour
+  rateLimitData.applications = applications
+    .map(Number)
+    .filter(timestamp => Number.isFinite(timestamp) && timestamp > oneHourAgo);
   rateLimitData.applications.push(now);
-  
+
   await chrome.storage.local.set({ rateLimitData });
 }

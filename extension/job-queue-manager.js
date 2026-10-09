@@ -6,6 +6,11 @@ class JobQueueManager {
     this.appliedJobs = new Set();
     this.blacklistedCompanies = new Set();
     this.processing = false;
+    this.stopRequested = false;
+  }
+
+  stop() {
+    this.stopRequested = true;
   }
 
   async initialize() {
@@ -17,12 +22,17 @@ class JobQueueManager {
 
   async addJob(job) {
     const jobId = this.generateJobId(job);
-    
+
     // Check if already applied
     if (this.appliedJobs.has(jobId)) {
       return { success: false, reason: 'Already applied' };
     }
-    
+
+    // Check if the same job is already sitting in the queue
+    if (this.queue.some(j => j.id === jobId)) {
+      return { success: false, reason: 'Already in queue' };
+    }
+
     // Check if company is blacklisted
     if (this.isCompanyBlacklisted(job.company)) {
       return { success: false, reason: 'Company blacklisted' };
@@ -42,11 +52,28 @@ class JobQueueManager {
   }
 
   async addMultipleJobs(jobs) {
+    if (!Array.isArray(jobs)) return { added: 0, total: 0 };
+
     let added = 0;
+    const queuedIds = new Set(this.queue.map(job => job.id));
     for (const job of jobs) {
-      const result = await this.addJob(job);
-      if (result.success) added++;
+      if (!job || typeof job !== 'object') continue;
+      const jobId = this.generateJobId(job);
+      if (this.appliedJobs.has(jobId) || queuedIds.has(jobId) || this.isCompanyBlacklisted(job.company)) continue;
+
+      this.queue.push({
+        ...job,
+        id: jobId,
+        addedAt: Date.now(),
+        status: 'pending',
+        attempts: 0
+      });
+      queuedIds.add(jobId);
+      added++;
     }
+
+    // One write for the batch instead of one write per scraped job.
+    if (added > 0) await this.save();
     return { added, total: jobs.length };
   }
 
@@ -58,81 +85,103 @@ class JobQueueManager {
   isCompanyBlacklisted(company) {
     if (!company) return false;
     const normalized = company.toLowerCase().trim();
-    return Array.from(this.blacklistedCompanies).some(bc => 
-      normalized.includes(bc.toLowerCase())
-    );
+    return Array.from(this.blacklistedCompanies).some(bc => {
+      const blocked = String(bc || '').toLowerCase().trim();
+      return blocked.length > 0 && normalized.includes(blocked);
+    });
   }
 
-  async processQueue(profile, settings) {
+  async processQueue(profile, settings = {}) {
     if (this.processing) return { success: false, reason: 'Already processing' };
-    
+
     this.processing = true;
-    const results = {
-      success: 0,
-      failed: 0,
-      skipped: 0
-    };
+    this.stopRequested = false;
+    const results = { success: 0, failed: 0, skipped: 0 };
+    const queueAtStart = [...this.queue];
 
-    for (const job of this.queue) {
-      if (job.status === 'completed') {
-        results.skipped++;
-        continue;
-      }
-
-      // Apply rate limiting
-      if (settings.rateLimiting) {
-        await this.checkRateLimit(settings);
-      }
-
-      // Process job
-      const result = await this.processJob(job, profile, settings);
-      
-      if (result.success) {
-        job.status = 'completed';
-        job.completedAt = Date.now();
-        this.appliedJobs.add(job.id);
-        results.success++;
-      } else {
-        job.attempts++;
-        if (job.attempts >= 3) {
-          job.status = 'failed';
-          job.failedReason = result.reason;
+    try {
+      for (let index = 0; index < queueAtStart.length; index++) {
+        if (this.stopRequested) {
+          results.skipped += queueAtStart.length - index;
+          break;
         }
-        results.failed++;
-      }
 
-      await this.save();
-      
-      // Random delay between jobs (stealth mode)
-      await this.wait(this.getRandomDelay(settings));
+        const job = queueAtStart[index];
+        if (['completed', 'failed', 'review'].includes(job.status)) {
+          results.skipped++;
+          continue;
+        }
+
+        // Apply the configured rate limit, if enabled
+        if (settings.rateLimiting && !this.stopRequested) {
+          await this.checkRateLimit(settings);
+        }
+        if (this.stopRequested) {
+          results.skipped += queueAtStart.length - index;
+          break;
+        }
+
+        const result = await this.processJob(job, profile, settings);
+        if (result && result.success) {
+          job.status = 'completed';
+          job.completedAt = Date.now();
+          this.appliedJobs.add(job.id);
+          results.success++;
+        } else {
+          job.attempts = (job.attempts || 0) + 1;
+          if (job.attempts >= 3) {
+            job.status = 'failed';
+            job.failedReason = (result && result.reason) || 'Unknown error';
+          }
+          results.failed++;
+        }
+
+        await this.save();
+
+        // Do not add an artificial per-field delay here; the only pause is
+        // between separate job applications and remains rate-limited.
+        if (index < queueAtStart.length - 1 && !this.stopRequested) {
+          await this.waitUntilStopped(this.getRandomDelay(settings));
+        }
+      }
+    } finally {
+      this.processing = false;
     }
 
-    this.processing = false;
     return results;
   }
 
-  async processJob(job, profile, settings) {
+  async processJob(job, profile, settings = {}) {
+    let tab;
+    let timeoutId;
     try {
       // Open job in new tab
-      const tab = await chrome.tabs.create({ url: job.url, active: false });
-      
+      tab = await chrome.tabs.create({ url: job.url, active: false });
+
       // Wait for page load
       await this.waitForTabLoad(tab.id);
-      
-      // Send apply command to content script
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        action: 'applyToJob',
-        job: job,
-        profile: profile,
-        settings: settings
+
+      // Bound the response wait so a missing content script cannot stall the queue.
+      const timeout = new Promise(resolve => {
+        timeoutId = setTimeout(() => resolve({
+          success: false,
+          reason: 'Timed out waiting for the page to respond'
+        }), 120000);
       });
+      const response = await Promise.race([
+        chrome.tabs.sendMessage(tab.id, { action: 'applyToJob', job, profile, settings }),
+        timeout
+      ]);
 
-      // Close tab after some time
-      setTimeout(() => chrome.tabs.remove(tab.id), 5000);
-
-      return response;
+      return response || { success: false, reason: 'No response from page' };
     } catch (error) {
       return { success: false, reason: error.message };
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+      // Always close the tab — but only AFTER the apply finished
+      if (tab) {
+        try { await chrome.tabs.remove(tab.id); } catch (e) { /* already closed */ }
+      }
     }
   }
 
@@ -158,25 +207,31 @@ class JobQueueManager {
         const job = this.queue.find(j => j.id === id);
         return job.completedAt;
       }));
-      const waitTime = oneHour - (now - oldestApp);
-      await this.wait(waitTime);
+      const waitTime = Math.max(0, oneHour - (now - oldestApp));
+      await this.waitUntilStopped(waitTime);
     }
   }
 
-  getRandomDelay(settings) {
-    const min = settings.minDelay || 30000; // 30 sec
-    const max = settings.maxDelay || 120000; // 2 min
+  getRandomDelay(settings = {}) {
+    const min = Math.max(0, Number(settings.minDelay) || 30000);
+    const max = Math.max(min, Number(settings.maxDelay) || 120000);
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
   async blacklistCompany(company) {
-    this.blacklistedCompanies.add(company.toLowerCase().trim());
+    const normalized = String(company || '').toLowerCase().trim();
+    if (!normalized) return false;
+    this.blacklistedCompanies.add(normalized);
     await this.save();
+    return true;
   }
 
   async removeFromBlacklist(company) {
-    this.blacklistedCompanies.delete(company.toLowerCase().trim());
+    const normalized = String(company || '').toLowerCase().trim();
+    if (!normalized) return false;
+    this.blacklistedCompanies.delete(normalized);
     await this.save();
+    return true;
   }
 
   getStats() {
@@ -206,16 +261,39 @@ class JobQueueManager {
     });
   }
 
-  waitForTabLoad(tabId) {
-    return new Promise(resolve => {
-      const listener = (updatedTabId, changeInfo) => {
-        if (updatedTabId === tabId && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          setTimeout(resolve, 2000);
-        }
+  waitForTabLoad(tabId, timeoutMs = 60000) {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let timer;
+
+      const finish = (error = null) => {
+        if (settled) return;
+        settled = true;
+        chrome.tabs.onUpdated.removeListener(listener);
+        clearTimeout(timer);
+        if (error) reject(error);
+        else setTimeout(resolve, 500); // small page-settle allowance
       };
+
+      const listener = (updatedTabId, changeInfo) => {
+        if (updatedTabId === tabId && changeInfo.status === 'complete') finish();
+      };
+
+      timer = setTimeout(() => finish(new Error('Timed out waiting for the job page to load')), timeoutMs);
       chrome.tabs.onUpdated.addListener(listener);
+
+      // Avoid missing the complete event if it fired before the listener was added
+      chrome.tabs.get(tabId)
+        .then(tab => { if (tab && tab.status === 'complete') finish(); })
+        .catch(error => finish(error));
     });
+  }
+
+  async waitUntilStopped(ms) {
+    const deadline = Date.now() + Math.max(0, ms);
+    while (!this.stopRequested && Date.now() < deadline) {
+      await this.wait(Math.min(500, deadline - Date.now()));
+    }
   }
 
   wait(ms) {

@@ -9,7 +9,7 @@ class JobScraper {
     const host = window.location.hostname;
     if (host.includes('linkedin.com')) return 'linkedin';
     if (host.includes('naukri.com')) return 'naukri';
-    if (host.includes('indeed.com')) return 'indeed';
+    if (host.includes('indeed.com') || host.includes('indeed.co.in')) return 'indeed';
     return 'unknown';
   }
 
@@ -49,7 +49,11 @@ class JobScraper {
     const companyEl = card.querySelector('.job-card-container__company-name, .jobs-unified-top-card__company-name');
     const locationEl = card.querySelector('.job-card-container__metadata-item, .jobs-unified-top-card__bullet');
     const linkEl = card.querySelector('a[href*="/jobs/view/"]');
-    const easyApplyBadge = card.querySelector('.job-card-container__apply-method, [data-job-posted-time]');
+    const easyApplyBadge = card.querySelector(
+      '.job-card-container__apply-method--easy-apply, .job-card-container__apply-method, [aria-label*="Easy Apply"]'
+    );
+    const hasEasyApply = !!card.querySelector('.job-card-container__apply-method--easy-apply, [aria-label*="Easy Apply"]') ||
+      /easy\s+apply/i.test(easyApplyBadge?.textContent || '');
 
     return {
       title: titleEl?.textContent.trim() || '',
@@ -57,7 +61,7 @@ class JobScraper {
       location: locationEl?.textContent.trim() || '',
       url: linkEl?.href || '',
       platform: 'linkedin',
-      hasEasyApply: !!card.querySelector('.job-card-container__apply-method--easy-apply'),
+      hasEasyApply,
       postedDate: card.querySelector('[data-job-posted-time]')?.textContent.trim() || '',
       scrapedAt: Date.now()
     };
@@ -89,13 +93,19 @@ class JobScraper {
     const salaryEl = card.querySelector('.salary, .jobTuple-salary');
     const linkEl = card.querySelector('a.title, .jobTuple-title a');
 
+    let url = '';
+    if (linkEl) {
+      url = linkEl.href ||
+        (linkEl.getAttribute('href') ? new URL(linkEl.getAttribute('href'), window.location.origin).href : '');
+    }
+
     return {
       title: titleEl?.textContent.trim() || '',
       company: companyEl?.textContent.trim() || '',
       location: locationEl?.textContent.trim() || '',
       experience: experienceEl?.textContent.trim() || '',
       salary: salaryEl?.textContent.trim() || '',
-      url: linkEl?.href || window.location.origin + linkEl?.getAttribute('href') || '',
+      url,
       platform: 'naukri',
       scrapedAt: Date.now()
     };
@@ -156,8 +166,9 @@ class JobScraper {
       if (hasExcluded) return false;
     }
 
-    // Easy Apply only (LinkedIn)
-    if (filters.easyApplyOnly && !job.hasEasyApply) {
+    // Easy Apply is a LinkedIn-specific filter. Other providers use different
+    // application flows, so don't discard their jobs when this option is set.
+    if (filters.easyApplyOnly && job.platform === 'linkedin' && !job.hasEasyApply) {
       return false;
     }
 
